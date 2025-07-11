@@ -226,7 +226,7 @@ const Upload = () => {
                       <p className="text-gray-500 mb-4">Upload some resumes to see them here</p>
                       <Button 
                         variant="outline" 
-                        onClick={() => document.querySelector('[value="resumes"]')?.click()}
+                        onClick={() => (document.querySelector('[value="resumes"]') as HTMLElement)?.click()}
                       >
                         Go to Upload Tab
                       </Button>
