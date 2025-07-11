@@ -13,7 +13,8 @@ import {
   AlertCircle,
   Zap,
   Clock,
-  Target
+  Target,
+  User
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
@@ -71,6 +72,20 @@ const Upload = () => {
     setProcessing(true);
     setProgress(0);
 
+    // Store the uploaded data in localStorage for now
+    const uploadedData = {
+      jobDescription,
+      resumes: resumes.map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified
+      })),
+      timestamp: new Date().toISOString()
+    };
+    
+    localStorage.setItem('uploadedResumes', JSON.stringify(uploadedData));
+
     // Simulate AI processing
     const interval = setInterval(() => {
       setProgress(prev => {
@@ -79,7 +94,7 @@ const Upload = () => {
           setProcessing(false);
           toast({
             title: "Processing complete!",
-            description: "Your resumes have been matched successfully",
+            description: `${resumes.length} resumes have been matched successfully`,
           });
           navigate('/dashboard');
           return 100;
@@ -110,12 +125,15 @@ const Upload = () => {
           </div>
 
           <Tabs defaultValue="job-description" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-2 bg-white shadow-sm">
+            <TabsList className="grid w-full grid-cols-3 bg-white shadow-sm">
               <TabsTrigger value="job-description" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
                 1. Job Description
               </TabsTrigger>
               <TabsTrigger value="resumes" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
                 2. Upload Resumes
+              </TabsTrigger>
+              <TabsTrigger value="uploaded" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                3. Uploaded Files ({resumes.length})
               </TabsTrigger>
             </TabsList>
 
@@ -156,7 +174,7 @@ const Upload = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <FileText className="w-5 h-5 mr-2 text-blue-600" />
-                    Upload Resumes ({resumes.length})
+                    Upload Resumes
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -187,30 +205,67 @@ const Upload = () => {
                     className="hidden"
                     onChange={handleFileInput}
                   />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                  {/* File List */}
-                  {resumes.length > 0 && (
-                    <div className="mt-6 space-y-3">
-                      <h4 className="font-semibold text-gray-900">Uploaded Files:</h4>
+            {/* Uploaded Files Tab */}
+            <TabsContent value="uploaded">
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <User className="w-5 h-5 mr-2 text-blue-600" />
+                    Uploaded Resumes ({resumes.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {resumes.length === 0 ? (
+                    <div className="text-center py-12">
+                      <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                      <h3 className="text-lg font-semibold text-gray-700 mb-2">No resumes uploaded yet</h3>
+                      <p className="text-gray-500 mb-4">Upload some resumes to see them here</p>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => document.querySelector('[value="resumes"]')?.click()}
+                      >
+                        Go to Upload Tab
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-semibold text-gray-900">Your Uploaded Files:</h4>
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                          {resumes.length} files ready
+                        </Badge>
+                      </div>
                       {resumes.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                        <div key={index} className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-md transition-shadow">
                           <div className="flex items-center">
-                            <FileText className="w-5 h-5 text-blue-600 mr-3" />
+                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                              <FileText className="w-5 h-5 text-blue-600" />
+                            </div>
                             <div>
-                              <span className="font-medium text-gray-900">{file.name}</span>
-                              <span className="text-sm text-gray-500 ml-2">
-                                ({(file.size / 1024).toFixed(1)} KB)
-                              </span>
+                              <span className="font-medium text-gray-900 block">{file.name}</span>
+                              <div className="text-sm text-gray-500">
+                                {(file.size / 1024).toFixed(1)} KB • {file.type.split('/')[1].toUpperCase()}
+                              </div>
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeFile(index)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className="text-green-600 border-green-200">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Ready
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeFile(index)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -225,8 +280,8 @@ const Upload = () => {
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardContent className="p-8 text-center">
                 <div className="animate-spin w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-                <h3 className="text-lg font-semibold mb-2">Processing Resumes...</h3>
-                <p className="text-gray-600 mb-4">Our AI is analyzing and matching your resumes</p>
+                <h3 className="text-lg font-semibold mb-2">Processing {resumes.length} Resumes...</h3>
+                <p className="text-gray-600 mb-4">Our AI is analyzing and matching your uploaded resumes</p>
                 <Progress value={progress} className="w-full max-w-md mx-auto" />
                 <p className="text-sm text-gray-500 mt-2">{progress}% complete</p>
               </CardContent>
@@ -253,7 +308,7 @@ const Upload = () => {
               ) : (
                 <>
                   <Zap className="w-5 h-5 mr-2" />
-                  Start AI Matching
+                  Start AI Matching ({resumes.length} resumes)
                 </>
               )}
             </Button>

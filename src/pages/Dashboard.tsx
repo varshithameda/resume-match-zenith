@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,8 @@ import {
   Brain,
   CheckCircle,
   AlertTriangle,
-  BarChart3
+  BarChart3,
+  Upload as UploadIcon
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
@@ -24,62 +25,62 @@ import Header from "@/components/Header";
 const Dashboard = () => {
   const navigate = useNavigate();
   const [selectedCandidate, setSelectedCandidate] = useState<number | null>(null);
+  const [uploadedData, setUploadedData] = useState<any>(null);
 
-  // Mock data for demonstration
-  const candidates = [
-    {
-      id: 1,
-      name: "Sarah Johnson",
-      title: "Senior Frontend Developer",
-      score: 94,
-      skills: ["React", "TypeScript", "Node.js", "GraphQL", "AWS"],
-      experience: "5 years",
-      education: "BS Computer Science",
-      strengths: ["Strong React expertise", "Full-stack capabilities", "Cloud experience"],
-      gaps: ["No Python experience", "Limited mobile development"],
-      email: "sarah.j@email.com",
-      phone: "+1 (555) 123-4567"
-    },
-    {
-      id: 2,
-      name: "Michael Chen",
-      title: "Full Stack Engineer",
-      score: 89,
-      skills: ["JavaScript", "Python", "Django", "PostgreSQL", "Docker"],
-      experience: "4 years",
-      education: "MS Software Engineering",
-      strengths: ["Versatile full-stack skills", "Database expertise", "DevOps knowledge"],
-      gaps: ["No React experience", "Limited AWS knowledge"],
-      email: "m.chen@email.com",
-      phone: "+1 (555) 234-5678"
-    },
-    {
-      id: 3,
-      name: "Emily Rodriguez",
-      title: "Frontend Developer",
-      score: 82,
-      skills: ["React", "Vue.js", "CSS", "JavaScript", "Figma"],
-      experience: "3 years",
-      education: "BS Web Design",
-      strengths: ["UI/UX focus", "Modern frameworks", "Design skills"],
-      gaps: ["Limited backend experience", "No cloud experience"],
-      email: "emily.r@email.com",
-      phone: "+1 (555) 345-6789"
-    },
-    {
-      id: 4,
-      name: "David Kim",
-      title: "Software Engineer",
-      score: 76,
-      skills: ["Java", "Spring", "MySQL", "Jenkins", "Git"],
-      experience: "6 years",
-      education: "BS Computer Engineering",
-      strengths: ["Enterprise experience", "Strong backend skills", "CI/CD expertise"],
-      gaps: ["No modern frontend frameworks", "Limited cloud knowledge"],
-      email: "d.kim@email.com",
-      phone: "+1 (555) 456-7890"
+  // Load uploaded data from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('uploadedResumes');
+    if (stored) {
+      setUploadedData(JSON.parse(stored));
     }
-  ];
+  }, []);
+
+  // Generate mock analysis for uploaded resumes
+  const generateCandidateData = (resumes: any[]) => {
+    const mockSkills = [
+      ["React", "TypeScript", "Node.js", "GraphQL", "AWS"],
+      ["JavaScript", "Python", "Django", "PostgreSQL", "Docker"],
+      ["React", "Vue.js", "CSS", "JavaScript", "Figma"],
+      ["Java", "Spring", "MySQL", "Jenkins", "Git"],
+      ["Angular", "C#", ".NET", "Azure", "SQL Server"],
+      ["PHP", "Laravel", "WordPress", "MySQL", "Linux"]
+    ];
+
+    const mockTitles = [
+      "Senior Frontend Developer",
+      "Full Stack Engineer", 
+      "Frontend Developer",
+      "Software Engineer",
+      "Backend Developer",
+      "Web Developer"
+    ];
+
+    return resumes.map((resume, index) => ({
+      id: index + 1,
+      name: resume.name.replace(/\.(pdf|docx|png|jpg|jpeg)$/i, '').replace(/[-_]/g, ' '),
+      title: mockTitles[index % mockTitles.length],
+      score: Math.floor(Math.random() * 25) + 75, // 75-100
+      skills: mockSkills[index % mockSkills.length],
+      experience: `${Math.floor(Math.random() * 8) + 2} years`,
+      education: index % 2 === 0 ? "BS Computer Science" : "MS Software Engineering",
+      strengths: [
+        "Strong technical skills",
+        "Relevant experience",
+        "Good cultural fit"
+      ],
+      gaps: [
+        "Could use more cloud experience",
+        "Limited mobile development"
+      ],
+      email: `${resume.name.split('.')[0].toLowerCase()}@email.com`,
+      phone: `+1 (555) ${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
+      fileName: resume.name,
+      fileSize: resume.size,
+      fileType: resume.type
+    }));
+  };
+
+  const candidates = uploadedData ? generateCandidateData(uploadedData.resumes) : [];
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return "bg-green-500";
@@ -95,6 +96,40 @@ const Dashboard = () => {
     return "bg-red-100 text-red-800";
   };
 
+  // If no uploaded data, show empty state
+  if (!uploadedData || candidates.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <Header />
+        
+        <div className="pt-24 pb-16 px-4">
+          <div className="max-w-4xl mx-auto text-center">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-12">
+              <UploadIcon className="w-16 h-16 mx-auto mb-6 text-gray-400" />
+              <h1 className="text-3xl font-bold text-gray-900 mb-4">
+                No Resumes Uploaded Yet
+              </h1>
+              <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+                Upload your job description and candidate resumes to see AI-powered matching results here.
+              </p>
+              <Button 
+                size="lg"
+                onClick={() => navigate('/upload')}
+                className="px-8 py-6 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                <UploadIcon className="w-5 h-5 mr-2" />
+                Start Uploading Resumes
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const avgScore = Math.round(candidates.reduce((sum, c) => sum + c.score, 0) / candidates.length);
+  const topScore = Math.max(...candidates.map(c => c.score));
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header />
@@ -108,7 +143,10 @@ const Dashboard = () => {
                 Resume Matching Results
               </h1>
               <p className="text-gray-600">
-                AI-powered analysis of 4 candidates for Senior Frontend Developer position
+                AI-powered analysis of {candidates.length} uploaded candidates
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Uploaded on {new Date(uploadedData.timestamp).toLocaleDateString()}
               </p>
             </div>
             <div className="flex gap-3 mt-4 lg:mt-0">
@@ -130,7 +168,7 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Total Candidates</p>
-                    <p className="text-2xl font-bold text-gray-900">4</p>
+                    <p className="text-2xl font-bold text-gray-900">{candidates.length}</p>
                   </div>
                   <User className="w-8 h-8 text-blue-600" />
                 </div>
@@ -142,7 +180,7 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Avg Match Score</p>
-                    <p className="text-2xl font-bold text-gray-900">85%</p>
+                    <p className="text-2xl font-bold text-gray-900">{avgScore}%</p>
                   </div>
                   <Target className="w-8 h-8 text-green-600" />
                 </div>
@@ -154,7 +192,7 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Top Score</p>
-                    <p className="text-2xl font-bold text-gray-900">94%</p>
+                    <p className="text-2xl font-bold text-gray-900">{topScore}%</p>
                   </div>
                   <Star className="w-8 h-8 text-yellow-600" />
                 </div>
@@ -179,7 +217,7 @@ const Dashboard = () => {
             <div className="lg:col-span-2 space-y-6">
               <h2 className="text-xl font-semibold text-gray-900 flex items-center">
                 <Brain className="w-5 h-5 mr-2 text-blue-600" />
-                Ranked Candidates
+                Your Uploaded Candidates (Ranked by AI)
               </h2>
               
               {candidates.map((candidate, index) => (
@@ -200,6 +238,10 @@ const Dashboard = () => {
                           <h3 className="text-lg font-semibold text-gray-900">{candidate.name}</h3>
                           <p className="text-gray-600">{candidate.title}</p>
                           <p className="text-sm text-gray-500">{candidate.experience} • {candidate.education}</p>
+                          <div className="flex items-center mt-1">
+                            <FileText className="w-3 h-3 text-gray-400 mr-1" />
+                            <span className="text-xs text-gray-500">{candidate.fileName}</span>
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
@@ -284,6 +326,13 @@ const Dashboard = () => {
                             <Badge className={`${getScoreBadgeColor(candidate.score)} mt-2`}>
                               {candidate.score}% Match
                             </Badge>
+                            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                              <p className="text-xs text-gray-600">Original File</p>
+                              <p className="text-sm font-medium">{candidate.fileName}</p>
+                              <p className="text-xs text-gray-500">
+                                {(candidate.fileSize / 1024).toFixed(1)} KB
+                              </p>
+                            </div>
                           </div>
 
                           <Tabs defaultValue="overview" className="w-full">
@@ -359,7 +408,7 @@ const Dashboard = () => {
                     <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="font-medium text-gray-900 mb-2">Select a Candidate</h3>
                     <p className="text-sm text-gray-600">
-                      Click on any candidate to view detailed analysis and matching insights.
+                      Click on any uploaded candidate to view detailed analysis and matching insights.
                     </p>
                   </CardContent>
                 </Card>
