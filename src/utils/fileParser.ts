@@ -1,8 +1,10 @@
 
-// File parsing utility for job descriptions in various formats
+// Enhanced file parsing utility for job descriptions in various formats
 export const parseJobDescriptionFile = async (file: File): Promise<string> => {
   const fileType = file.type.toLowerCase();
   const fileName = file.name.toLowerCase();
+  
+  console.log('Parsing file:', fileName, 'Type:', fileType);
   
   try {
     if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
@@ -17,52 +19,93 @@ export const parseJobDescriptionFile = async (file: File): Promise<string> => {
     } else if (fileType.startsWith('text/') || fileName.endsWith('.txt')) {
       return await parseTextFile(file);
     } else {
-      throw new Error('Unsupported file format. Please use PDF, Word, DOCX, or TXT files.');
+      // Try to parse as text for unsupported formats
+      console.log('Unsupported format, attempting text parsing');
+      return await parseAsText(file);
     }
   } catch (error) {
     console.error('Error parsing file:', error);
-    throw new Error('Failed to parse the job description file. Please try again or use a text format.');
+    // Fallback to basic text extraction
+    try {
+      return await parseAsText(file);
+    } catch (fallbackError) {
+      throw new Error('Failed to parse the job description file. Please ensure the file contains readable text.');
+    }
   }
 };
 
 const parsePDFFile = async (file: File): Promise<string> => {
-  // For now, we'll use a simple approach since PDF parsing requires external libraries
-  // In a real implementation, you'd use libraries like pdf-parse or PDF.js
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      // This is a simplified approach - in reality, PDF parsing is more complex
-      const text = reader.result as string;
-      // Extract readable text (this is a basic approach)
-      const cleanText = text.replace(/[^\x20-\x7E\n]/g, '').replace(/\s+/g, ' ').trim();
-      if (cleanText.length < 50) {
-        reject(new Error('Could not extract readable text from PDF. Please try a text-based format.'));
-      } else {
-        resolve(cleanText);
-      }
-    };
-    reader.onerror = () => reject(new Error('Failed to read PDF file'));
-    reader.readAsText(file);
-  });
-};
-
-const parseWordFile = async (file: File): Promise<string> => {
-  // For Word documents, we'll use a basic approach
-  // In a real implementation, you'd use libraries like mammoth.js
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const arrayBuffer = reader.result as ArrayBuffer;
-        const text = new TextDecoder().decode(arrayBuffer);
-        // Extract readable text (basic approach)
-        const cleanText = text.replace(/[^\x20-\x7E\n]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (cleanText.length < 50) {
-          reject(new Error('Could not extract readable text from Word document. Please try a text-based format.'));
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Convert to string and extract readable text
+        let text = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+          const char = String.fromCharCode(uint8Array[i]);
+          if (char.match(/[\x20-\x7E\n\r]/)) {
+            text += char;
+          }
+        }
+        
+        // Clean up the extracted text
+        const cleanText = text
+          .replace(/[^\w\s\n\r.,;:!?()\-+\/]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        console.log('PDF text extracted:', cleanText.substring(0, 200) + '...');
+        
+        if (cleanText.length < 20) {
+          reject(new Error('Could not extract readable text from PDF. The file might be image-based or corrupted.'));
         } else {
           resolve(cleanText);
         }
       } catch (error) {
+        console.error('PDF parsing error:', error);
+        reject(new Error('Failed to parse PDF file'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Failed to read PDF file'));
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+const parseWordFile = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const arrayBuffer = reader.result as ArrayBuffer;
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Extract text from Word document binary
+        let text = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+          const char = String.fromCharCode(uint8Array[i]);
+          if (char.match(/[\x20-\x7E\n\r]/)) {
+            text += char;
+          }
+        }
+        
+        // Clean up extracted text
+        const cleanText = text
+          .replace(/[^\w\s\n\r.,;:!?()\-+\/]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        console.log('Word text extracted:', cleanText.substring(0, 200) + '...');
+        
+        if (cleanText.length < 20) {
+          reject(new Error('Could not extract readable text from Word document.'));
+        } else {
+          resolve(cleanText);
+        }
+      } catch (error) {
+        console.error('Word parsing error:', error);
         reject(new Error('Failed to parse Word document'));
       }
     };
@@ -76,9 +119,31 @@ const parseTextFile = async (file: File): Promise<string> => {
     const reader = new FileReader();
     reader.onload = () => {
       const text = reader.result as string;
+      console.log('Text file parsed:', text.substring(0, 200) + '...');
       resolve(text.trim());
     };
     reader.onerror = () => reject(new Error('Failed to read text file'));
+    reader.readAsText(file);
+  });
+};
+
+const parseAsText = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = reader.result as string;
+        if (text && text.trim().length > 10) {
+          console.log('Fallback text parsing successful:', text.substring(0, 200) + '...');
+          resolve(text.trim());
+        } else {
+          reject(new Error('No readable text found in file'));
+        }
+      } catch (error) {
+        reject(error);
+      }
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsText(file);
   });
 };
