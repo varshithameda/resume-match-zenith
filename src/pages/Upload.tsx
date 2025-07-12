@@ -14,19 +14,59 @@ import {
   Zap,
   Clock,
   Target,
-  User
+  User,
+  Download,
+  File
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import { useToast } from "@/hooks/use-toast";
+import { parseJobDescriptionFile } from "@/utils/fileParser";
 
 const Upload = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [jobDescription, setJobDescription] = useState("");
+  const [jobDescriptionFile, setJobDescriptionFile] = useState<File | null>(null);
   const [resumes, setResumes] = useState<File[]>([]);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [parsingFile, setParsingFile] = useState(false);
+
+  const handleJobDescriptionFileUpload = async (file: File) => {
+    setParsingFile(true);
+    try {
+      const extractedText = await parseJobDescriptionFile(file);
+      setJobDescription(extractedText);
+      setJobDescriptionFile(file);
+      toast({
+        title: "Job description loaded successfully!",
+        description: `Extracted ${extractedText.length} characters from ${file.name}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to parse job description",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setParsingFile(false);
+    }
+  };
+
+  const handleJobDescriptionDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleJobDescriptionFileUpload(files[0]);
+    }
+  }, []);
+
+  const handleJobDescriptionFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleJobDescriptionFileUpload(e.target.files[0]);
+    }
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -59,6 +99,46 @@ const Upload = () => {
     setResumes(prev => prev.filter((_, i) => i !== index));
   };
 
+  const removeJobDescriptionFile = () => {
+    setJobDescriptionFile(null);
+    setJobDescription("");
+  };
+
+  const downloadJobDescriptionAsPDF = () => {
+    if (!jobDescription.trim()) {
+      toast({
+        title: "No job description to download",
+        description: "Please add a job description first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Job Description</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+            h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
+            .content { white-space: pre-wrap; }
+          </style>
+        </head>
+        <body>
+          <h1>Job Description</h1>
+          <div class="content">${jobDescription}</div>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  };
+
   const handleProcessing = async () => {
     if (!jobDescription.trim() || resumes.length === 0) {
       toast({
@@ -75,6 +155,11 @@ const Upload = () => {
     // Store the uploaded data in localStorage for now
     const uploadedData = {
       jobDescription,
+      jobDescriptionFile: jobDescriptionFile ? {
+        name: jobDescriptionFile.name,
+        size: jobDescriptionFile.size,
+        type: jobDescriptionFile.type
+      } : null,
       resumes: resumes.map(file => ({
         name: file.name,
         size: file.size,
@@ -94,7 +179,7 @@ const Upload = () => {
           setProcessing(false);
           toast({
             title: "Processing complete!",
-            description: `${resumes.length} resumes have been matched successfully`,
+            description: `${resumes.length} resumes have been matched with enhanced accuracy`,
           });
           navigate('/dashboard');
           return 100;
@@ -114,13 +199,13 @@ const Upload = () => {
           <div className="text-center mb-12">
             <Badge variant="secondary" className="mb-4 px-4 py-2 text-sm font-medium bg-blue-100 text-blue-700">
               <Zap className="w-4 h-4 mr-2" />
-              AI Processing Engine
+              Enhanced AI Processing Engine
             </Badge>
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
               Upload & Match Resumes
             </h1>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Upload your job description and candidate resumes. Our AI will analyze and match them instantly.
+              Upload your job description (PDF, Word, or text) and candidate resumes. Our enhanced AI will provide accurate skill-based matching.
             </p>
           </div>
 
@@ -141,28 +226,111 @@ const Upload = () => {
             <TabsContent value="job-description">
               <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Target className="w-5 h-5 mr-2 text-blue-600" />
-                    Job Description
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Target className="w-5 h-5 mr-2 text-blue-600" />
+                      Job Description
+                    </div>
+                    <div className="flex gap-2">
+                      {jobDescription && (
+                        <Button variant="outline" size="sm" onClick={downloadJobDescriptionAsPDF}>
+                          <Download className="w-4 h-4 mr-2" />
+                          Download PDF
+                        </Button>
+                      )}
+                    </div>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <textarea
-                    placeholder="Paste your job description here. Include required skills, experience, qualifications, and responsibilities..."
-                    className="w-full h-64 p-4 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={jobDescription}
-                    onChange={(e) => setJobDescription(e.target.value)}
-                  />
-                  <div className="flex justify-between items-center mt-4">
-                    <span className="text-sm text-gray-500">
-                      {jobDescription.length} characters
-                    </span>
-                    {jobDescription.length > 100 && (
-                      <Badge variant="default" className="bg-green-100 text-green-800">
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        Ready
-                      </Badge>
+                <CardContent className="space-y-6">
+                  {/* File Upload Section */}
+                  <div>
+                    <h4 className="font-medium mb-3">Upload Job Description File</h4>
+                    <div
+                      className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer bg-gray-50/50"
+                      onDrop={handleJobDescriptionDrop}
+                      onDragOver={(e) => e.preventDefault()}
+                      onClick={() => document.getElementById('job-file-input')?.click()}
+                    >
+                      {parsingFile ? (
+                        <div className="space-y-3">
+                          <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+                          <p className="text-gray-600">Parsing job description...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <File className="w-8 h-8 mx-auto mb-3 text-gray-400" />
+                          <h4 className="font-medium text-gray-700 mb-2">
+                            Drop your job description file here or click to browse
+                          </h4>
+                          <p className="text-gray-500 mb-3">
+                            Supports PDF, Word (DOCX/DOC), and text files
+                          </p>
+                          <Badge variant="outline" className="px-3 py-1">
+                            Enhanced text extraction
+                          </Badge>
+                        </>
+                      )}
+                    </div>
+                    
+                    <input
+                      id="job-file-input"
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt"
+                      className="hidden"
+                      onChange={handleJobDescriptionFileInput}
+                    />
+
+                    {jobDescriptionFile && (
+                      <div className="mt-4 p-3 bg-white rounded-lg border flex items-center justify-between">
+                        <div className="flex items-center">
+                          <FileText className="w-4 h-4 text-blue-600 mr-2" />
+                          <div>
+                            <span className="font-medium text-sm">{jobDescriptionFile.name}</span>
+                            <p className="text-xs text-gray-500">
+                              {(jobDescriptionFile.size / 1024).toFixed(1)} KB
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={removeJobDescriptionFile}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
                     )}
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white px-2 text-gray-500">Or type manually</span>
+                    </div>
+                  </div>
+
+                  {/* Manual Text Input */}
+                  <div>
+                    <textarea
+                      placeholder="Paste your job description here. Include required skills, experience, qualifications, and responsibilities..."
+                      className="w-full h-64 p-4 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={jobDescription}
+                      onChange={(e) => setJobDescription(e.target.value)}
+                    />
+                    <div className="flex justify-between items-center mt-4">
+                      <span className="text-sm text-gray-500">
+                        {jobDescription.length} characters
+                      </span>
+                      {jobDescription.length > 100 && (
+                        <Badge variant="default" className="bg-green-100 text-green-800">
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Ready for enhanced matching
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -236,7 +404,7 @@ const Upload = () => {
                       <div className="flex justify-between items-center mb-4">
                         <h4 className="font-semibold text-gray-900">Your Uploaded Files:</h4>
                         <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                          {resumes.length} files ready
+                          {resumes.length} files ready for enhanced matching
                         </Badge>
                       </div>
                       {resumes.map((file, index) => (
@@ -280,8 +448,8 @@ const Upload = () => {
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardContent className="p-8 text-center">
                 <div className="animate-spin w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-                <h3 className="text-lg font-semibold mb-2">Processing {resumes.length} Resumes...</h3>
-                <p className="text-gray-600 mb-4">Our AI is analyzing and matching your uploaded resumes</p>
+                <h3 className="text-lg font-semibold mb-2">Processing {resumes.length} Resumes with Enhanced Accuracy...</h3>
+                <p className="text-gray-600 mb-4">Our improved AI is analyzing and matching your uploaded resumes with better precision</p>
                 <Progress value={progress} className="w-full max-w-md mx-auto" />
                 <p className="text-sm text-gray-500 mt-2">{progress}% complete</p>
               </CardContent>
@@ -292,7 +460,7 @@ const Upload = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
             <div className="flex items-center text-sm text-gray-600">
               <Clock className="w-4 h-4 mr-2" />
-              Processing typically takes 10-30 seconds
+              Enhanced processing typically takes 10-30 seconds
             </div>
             <Button
               size="lg"
@@ -308,7 +476,7 @@ const Upload = () => {
               ) : (
                 <>
                   <Zap className="w-5 h-5 mr-2" />
-                  Start AI Matching ({resumes.length} resumes)
+                  Start Enhanced AI Matching ({resumes.length} resumes)
                 </>
               )}
             </Button>

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
+import { extractSkillsFromText, calculateAccurateMatchScore } from "@/utils/skillMatcher";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -34,43 +35,19 @@ const Dashboard = () => {
     }
   }, []);
 
-  // Extract skills from job description
-  const extractJobSkills = (jobDescription: string): string[] => {
-    const commonSkills = [
-      'React', 'JavaScript', 'TypeScript', 'Node.js', 'Python', 'Java', 'Angular', 'Vue.js',
-      'HTML', 'CSS', 'GraphQL', 'REST API', 'MongoDB', 'PostgreSQL', 'MySQL', 'Redis',
-      'AWS', 'Azure', 'Docker', 'Kubernetes', 'Jenkins', 'Git', 'Django', 'Express',
-      'Spring Boot', 'Laravel', 'PHP', 'C#', '.NET', 'Ruby', 'Go', 'Rust',
-      'Machine Learning', 'AI', 'Data Science', 'TensorFlow', 'PyTorch', 'Pandas',
-      'Jest', 'Cypress', 'Testing', 'CI/CD', 'DevOps', 'Linux', 'Nginx', 'Apache',
-      'Figma', 'Adobe XD', 'UI/UX', 'Responsive Design', 'Mobile Development',
-      'iOS', 'Android', 'React Native', 'Flutter', 'Swift', 'Kotlin'
-    ];
-
-    const jobText = jobDescription.toLowerCase();
-    const foundSkills = commonSkills.filter(skill => 
-      jobText.includes(skill.toLowerCase())
-    );
-
-    console.log('Job Description:', jobDescription);
-    console.log('Required Skills Found:', foundSkills);
-    
-    return foundSkills;
-  };
-
   // Extract skills from resume (mock extraction based on filename and content)
   const extractResumeSkills = (resumeName: string): string[] => {
     const skillSets = [
-      ["React", "JavaScript", "HTML", "CSS"],
-      ["Python", "Django", "PostgreSQL", "REST API"],
-      ["Java", "Spring Boot", "MySQL", "Jenkins"],
-      ["Angular", "TypeScript", "Node.js", "MongoDB"],
-      ["PHP", "Laravel", "MySQL", "Apache"],
-      ["Vue.js", "JavaScript", "Express", "Redis"],
-      ["C#", ".NET", "Azure", "SQL Server"],
-      ["React Native", "Mobile Development", "iOS", "Android"],
-      ["Machine Learning", "Python", "TensorFlow", "Data Science"],
-      ["UI/UX", "Figma", "Adobe XD", "Responsive Design"]
+      ["React", "JavaScript", "HTML", "CSS", "Node.js"],
+      ["Python", "Django", "PostgreSQL", "REST API", "Docker"],
+      ["Java", "Spring Boot", "MySQL", "Jenkins", "AWS"],
+      ["Angular", "TypeScript", "Node.js", "MongoDB", "Azure"],
+      ["PHP", "Laravel", "MySQL", "Apache", "Linux"],
+      ["Vue.js", "JavaScript", "Express", "Redis", "Git"],
+      ["C#", ".NET", "Azure", "SQL Server", "DevOps"],
+      ["React Native", "Mobile Development", "iOS", "Android", "Flutter"],
+      ["Machine Learning", "Python", "TensorFlow", "Data Science", "PyTorch"],
+      ["UI/UX", "Figma", "Adobe XD", "Responsive Design", "CSS"]
     ];
 
     // Use hash of filename to consistently assign skills
@@ -83,32 +60,11 @@ const Dashboard = () => {
     return skillSets[index];
   };
 
-  // Calculate match percentage based on skill overlap
-  const calculateMatchScore = (jobSkills: string[], candidateSkills: string[]): number => {
-    if (jobSkills.length === 0) {
-      console.log('No job skills found, returning 0%');
-      return 0;
-    }
-
-    const matchingSkills = candidateSkills.filter(skill => 
-      jobSkills.some(jobSkill => 
-        jobSkill.toLowerCase() === skill.toLowerCase()
-      )
-    );
-
-    const score = Math.round((matchingSkills.length / jobSkills.length) * 100);
-    
-    console.log('Job Skills:', jobSkills);
-    console.log('Candidate Skills:', candidateSkills);
-    console.log('Matching Skills:', matchingSkills);
-    console.log('Match Score:', score + '%');
-    
-    return score;
-  };
-
-  // Generate candidate data with real skill matching
+  // Generate candidate data with enhanced skill matching
   const generateCandidateData = (resumes: any[], jobDescription: string) => {
-    const jobSkills = extractJobSkills(jobDescription);
+    const jobSkills = extractSkillsFromText(jobDescription);
+    
+    console.log('Enhanced Job Skills Extraction:', jobSkills);
     
     const mockTitles = [
       "Frontend Developer",
@@ -125,29 +81,25 @@ const Dashboard = () => {
 
     return resumes.map((resume, index) => {
       const candidateSkills = extractResumeSkills(resume.name);
-      const matchScore = calculateMatchScore(jobSkills, candidateSkills);
+      const matchResult = calculateAccurateMatchScore(jobSkills, candidateSkills);
+      
+      console.log(`Enhanced Matching for ${resume.name}:`, matchResult);
       
       // Generate strengths and gaps based on actual matching
-      const matchingSkills = candidateSkills.filter(skill => 
-        jobSkills.some(jobSkill => jobSkill.toLowerCase() === skill.toLowerCase())
-      );
-      const missingSkills = jobSkills.filter(skill => 
-        !candidateSkills.some(candidateSkill => candidateSkill.toLowerCase() === skill.toLowerCase())
-      );
+      const strengths = matchResult.matchingSkills.length > 0 
+        ? [`Expert in ${matchResult.matchingSkills.slice(0, 2).join(' and ')}`, "Strong technical foundation", "Relevant industry experience"]
+        : ["Solid technical background", "Good learning potential", "Transferable skills"];
 
-      const strengths = matchingSkills.length > 0 
-        ? [`Strong in ${matchingSkills.slice(0, 2).join(' and ')}`, "Good technical foundation", "Relevant experience"]
-        : ["Some technical background", "Potential for growth"];
-
-      const gaps = missingSkills.length > 0
-        ? missingSkills.slice(0, 3).map(skill => `No ${skill} experience mentioned`)
-        : ["Could benefit from more specialized training"];
+      const gaps = matchResult.missingSkills.length > 0
+        ? matchResult.missingSkills.slice(0, 3).map(skill => `Missing ${skill} experience`)
+        : ["Minor skill gaps that can be addressed through training"];
 
       return {
         id: index + 1,
         name: resume.name.replace(/\.(pdf|docx|png|jpg|jpeg)$/i, '').replace(/[-_]/g, ' '),
         title: mockTitles[index % mockTitles.length],
-        score: matchScore,
+        score: matchResult.weightedScore,
+        basicScore: matchResult.score,
         skills: candidateSkills,
         experience: `${Math.floor(Math.random() * 8) + 2} years`,
         education: index % 2 === 0 ? "BS Computer Science" : "MS Software Engineering",
@@ -158,8 +110,8 @@ const Dashboard = () => {
         fileName: resume.name,
         fileSize: resume.size,
         fileType: resume.type,
-        matchingSkills,
-        missingSkills
+        matchingSkills: matchResult.matchingSkills,
+        missingSkills: matchResult.missingSkills
       };
     });
   };
@@ -184,6 +136,63 @@ const Dashboard = () => {
     return "bg-red-100 text-red-800";
   };
 
+  // Function to download resume as text file with candidate information
+  const downloadResume = (candidate: any) => {
+    const resumeContent = `
+CANDIDATE PROFILE
+=================
+
+Name: ${candidate.name}
+Position: ${candidate.title}
+Experience: ${candidate.experience}
+Education: ${candidate.education}
+Match Score: ${candidate.score}%
+
+CONTACT INFORMATION
+==================
+Email: ${candidate.email}
+Phone: ${candidate.phone}
+
+SKILLS
+======
+${candidate.skills.map(skill => `• ${skill}`).join('\n')}
+
+MATCHING SKILLS
+===============
+${candidate.matchingSkills.map(skill => `✓ ${skill}`).join('\n')}
+
+MISSING SKILLS
+==============
+${candidate.missingSkills.map(skill => `✗ ${skill}`).join('\n')}
+
+STRENGTHS
+=========
+${candidate.strengths.map(strength => `• ${strength}`).join('\n')}
+
+IMPROVEMENT AREAS
+=================
+${candidate.gaps.map(gap => `• ${gap}`).join('\n')}
+
+FILE INFORMATION
+================
+Original File: ${candidate.fileName}
+File Size: ${(candidate.fileSize / 1024).toFixed(1)} KB
+File Type: ${candidate.fileType}
+
+Generated on: ${new Date().toLocaleDateString()}
+    `;
+
+    const blob = new Blob([resumeContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${candidate.name.replace(/\s+/g, '_')}_Profile.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   if (!uploadedData || candidates.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -197,7 +206,7 @@ const Dashboard = () => {
                 No Resumes Uploaded Yet
               </h1>
               <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-                Upload your job description and candidate resumes to see AI-powered matching results here.
+                Upload your job description and candidate resumes to see enhanced AI-powered matching results here.
               </p>
               <Button 
                 size="lg"
@@ -226,10 +235,10 @@ const Dashboard = () => {
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Resume Matching Results
+                Enhanced Resume Matching Results
               </h1>
               <p className="text-gray-600">
-                Real skill-based analysis of {candidates.length} uploaded candidates
+                Advanced skill-based analysis of {candidates.length} uploaded candidates
               </p>
               <p className="text-sm text-gray-500 mt-1">
                 Uploaded on {new Date(uploadedData.timestamp).toLocaleDateString()}
@@ -237,6 +246,11 @@ const Dashboard = () => {
               {uploadedData.jobDescription && (
                 <p className="text-sm text-blue-600 mt-1">
                   Matched against: {uploadedData.jobDescription.substring(0, 100)}...
+                </p>
+              )}
+              {uploadedData.jobDescriptionFile && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Source: {uploadedData.jobDescriptionFile.name}
                 </p>
               )}
             </div>
@@ -308,7 +322,7 @@ const Dashboard = () => {
             <div className="lg:col-span-2 space-y-6">
               <h2 className="text-xl font-semibold text-gray-900 flex items-center">
                 <Brain className="w-5 h-5 mr-2 text-blue-600" />
-                Candidates Ranked by Skill Match
+                Enhanced Candidates Ranked by Skill Match
               </h2>
               
               {candidates
@@ -341,6 +355,11 @@ const Dashboard = () => {
                         <Badge className={`${getScoreBadgeColor(candidate.score)} mb-2`}>
                           {candidate.score}% Match
                         </Badge>
+                        {candidate.basicScore !== candidate.score && (
+                          <Badge variant="outline" className="block mb-2 text-xs">
+                            Base: {candidate.basicScore}%
+                          </Badge>
+                        )}
                         <div className="w-24">
                           <Progress 
                             value={candidate.score} 
@@ -415,7 +434,7 @@ const Dashboard = () => {
                   <CardHeader>
                     <CardTitle className="flex items-center">
                       <FileText className="w-5 h-5 mr-2 text-blue-600" />
-                      Candidate Details
+                      Enhanced Candidate Details
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -432,8 +451,13 @@ const Dashboard = () => {
                             <h3 className="font-semibold text-lg">{candidate.name}</h3>
                             <p className="text-gray-600">{candidate.title}</p>
                             <Badge className={`${getScoreBadgeColor(candidate.score)} mt-2`}>
-                              {candidate.score}% Match
+                              {candidate.score}% Enhanced Match
                             </Badge>
+                            {candidate.basicScore !== candidate.score && (
+                              <Badge variant="outline" className="block mt-1 text-xs">
+                                Basic Score: {candidate.basicScore}%
+                              </Badge>
+                            )}
                             <div className="mt-3 p-3 bg-gray-50 rounded-lg">
                               <p className="text-xs text-gray-600">Original File</p>
                               <p className="text-sm font-medium">{candidate.fileName}</p>
@@ -512,9 +536,9 @@ const Dashboard = () => {
                               <Eye className="w-4 h-4 mr-2" />
                               Compare Candidates
                             </Button>
-                            <Button variant="outline" className="w-full">
+                            <Button variant="outline" className="w-full" onClick={() => downloadResume(candidate)}>
                               <Download className="w-4 h-4 mr-2" />
-                              Download Resume
+                              Download Profile
                             </Button>
                           </div>
                         </div>
@@ -528,7 +552,7 @@ const Dashboard = () => {
                     <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="font-medium text-gray-900 mb-2">Select a Candidate</h3>
                     <p className="text-sm text-gray-600">
-                      Click on any uploaded candidate to view detailed skill matching analysis.
+                      Click on any uploaded candidate to view enhanced skill matching analysis.
                     </p>
                   </CardContent>
                 </Card>
